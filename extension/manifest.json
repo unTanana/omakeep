@@ -1,0 +1,26 @@
+{
+  "manifest_version": 3,
+  "name": "Omakeep",
+  "version": "0.1.0",
+  "description": "Save the current page to your local Omakeep library.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAxR/ABXyUCrF0zLwOC7CnlHHrx5qZ6yQ6GsQDtmGTbVd0DATcGmyM8zZBmksNEtlyXkAOe/JsZ4IBYqy2XatN5axEB7nnU5SBqshEnnjjG/ms5Y6firFUKyaA4W7DH6wfzjqNP26drCR3bxLUFIraWthjBVArDMlatGHr2KMNiE7bMetttJny8x9Oo1ysJ9bFmXJsMl9nBgCKU1Ia7v+s2txOCEIz60RGxXGeGdk1fDPhiy85AtBCKtbTE9hbSkMw0UwEkxqJdtU9ZZPXFB/lTBejIlVhDCn3aqQ94hNvKW7FMLGV3ZIi1a2KqZ57IlaKzsQZxJHAVpH5XBG10DnGVwIDAQAB",
+  "permissions": [
+    "activeTab",
+    "nativeMessaging",
+    "favicon"
+  ],
+  "action": {
+    "default_title": "Save to Omakeep (Alt+Shift+K)"
+  },
+  "commands": {
+    "save-bookmark": {
+      "suggested_key": {
+        "default": "Alt+Shift+K"
+      },
+      "description": "Save page to Omakeep"
+    }
+  },
+  "background": {
+    "service_worker": "background.js"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "omakeep",
+  "name": "Omakeep",
+  "version": "0.1.0",
+  "author": "unTanana",
+  "license": "MIT",
+  "description": "Your bookmarks, notes and folders. Save from Chrome; open them anytime.",
+  "kinds": ["bar-widget", "panel"],
+  "activation": "on-demand",
+  "keepLoaded": true,
+  "entryPoints": { "barWidget": "BarWidget.qml", "panel": "App.qml" },
+  "barWidget": {
+    "displayName": "Omakeep", "category": "Productivity", "allowMultiple": false,
+    "defaultSection": "right", "defaults": {}, "schema": []
+  }
+}
