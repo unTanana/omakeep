@@ -6,28 +6,50 @@ import Quickshell.Io
 Item {
     id: root
     property string pluginDir: ""
-    property bool busy: process.running
+    // Not process.running, which stays false until the run has really started. A second start in that gap makes the Process run twice.
+    property bool busy: false
     property var request: null
-    property string output: ""
+    property var parts: []
+    property int size: 0
     property int errorLength: 0
     property bool overflow: false
     readonly property var processEnvironment: ({ HOME: Quickshell.env("HOME"), XDG_DATA_HOME: Quickshell.env("XDG_DATA_HOME"),
         XDG_RUNTIME_DIR: Quickshell.env("XDG_RUNTIME_DIR"), WAYLAND_DISPLAY: Quickshell.env("WAYLAND_DISPLAY"),
         DBUS_SESSION_BUS_ADDRESS: Quickshell.env("DBUS_SESSION_BUS_ADDRESS"), PATH: "/usr/bin:/bin", LANG: "C.UTF-8" })
-    signal completed(var request, var reply)
+    signal completed()
 
     function start(value) {
         if (busy) return false;
         request = value;
-        output = ""; errorLength = 0; overflow = false;
+        parts = []; size = 0; errorLength = 0; overflow = false;
+        busy = true;
         process.running = true;
         return true;
     }
     function cancel() { if (busy) { overflow = true; process.signal(15); kill.start(); } }
+    function finish(ok) {
+        kill.stop();
+        if (!ok) parts = [];
+        process.stdinEnabled = true;
+        busy = false;
+        completed();
+    }
+    // Call this from the completed handler. An older search never gets here, which is the point. As a signal
+    // argument the reply would pass through QVariant, after which Array.isArray() is false on its lists.
+    function parsed() {
+        var reply = { ok: false, error: "Could not reach the library. Check setup and retry." }, value;
+        try {
+            value = JSON.parse(parts.join(""));
+            if (value && typeof value.ok === "boolean" && (value.ok
+                ? value.result && typeof value.result === "object" && !Array.isArray(value.result)
+                : typeof value.error === "string" && value.error.length <= 256)) reply = value;
+        } catch (_) {}
+        return reply;
+    }
     Process {
         id: process
-        // setup creates this fixed launcher with the supported Node path and an eight-second timeout.
-        command: [root.pluginDir + "/run-helper", "--qml"]
+        // One static binary from this folder, with its own eight-second limit.
+        command: [root.pluginDir + "/bin/omakeep-helper", "--qml"]
         clearEnvironment: true
         environment: root.processEnvironment
         stdinEnabled: true
@@ -35,8 +57,9 @@ Item {
         stdout: SplitParser {
             splitMarker: ""
             onRead: function(chunk) {
-                if (root.output.length + chunk.length > 262144) root.cancel();
-                else if (!root.overflow) root.output += chunk;
+                root.size += chunk.length;
+                if (root.size > 262144) root.cancel();
+                else root.parts.push(chunk);
             }
         }
         stderr: SplitParser {
@@ -45,22 +68,10 @@ Item {
         }
         // Quickshell's installed qmltypes omit QProcess::ExitStatus; exercised by the real runtime check.
         // qmllint disable signal-handler-parameters
-        onExited: function(code) {
-            kill.stop();
-            var reply = { ok: false, error: "Could not reach the library. Check setup and retry." };
-            if (code === 0 && !root.overflow) {
-                try {
-                    var parsed = JSON.parse(root.output);
-                    if (parsed && typeof parsed.ok === "boolean" && (parsed.ok
-                        ? parsed.result && typeof parsed.result === "object" && !Array.isArray(parsed.result)
-                        : typeof parsed.error === "string" && parsed.error.length <= 256)) reply = parsed;
-                } catch (_) {}
-            }
-            root.output = "";
-            stdinEnabled = true;
-            root.completed(root.request, reply);
-        }
+        onExited: function(code) { root.finish(code === 0 && !root.overflow); }
         // qmllint enable signal-handler-parameters
+        // A helper that can't start never exits.
+        onRunningChanged: if (!running && root.busy) root.finish(false)
     }
     Timer { id: kill; interval: 1100; onTriggered: if (process.running) process.signal(9) }
     Component.onDestruction: if (process.running) process.signal(15)

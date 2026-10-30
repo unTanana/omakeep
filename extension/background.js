@@ -8,20 +8,8 @@ async function favicon(url) {
     target.searchParams.set('size', '32');
     const response = await fetch(target, { signal: AbortSignal.timeout(500) });
     if (!response.ok) return '';
-    const reader = response.body.getReader();
-    const parts = [];
-    let size = 0;
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      size += value.length;
-      if (size > 16384) { await reader.cancel(); return ''; }
-      parts.push(value);
-    }
-    const bytes = new Uint8Array(size);
-    let offset = 0;
-    for (const part of parts) { bytes.set(part, offset); offset += part.length; }
-    return btoa(String.fromCharCode(...bytes));
+    const bytes = await response.bytes();
+    return bytes.length > 16384 ? '' : bytes.toBase64();
   } catch { return ''; }
 }
 

@@ -1,0 +1,68 @@
+<!doctype html><meta charset="utf-8"><title>Omakeep JS tests</title>
+<pre id="out">pending</pre>
+<script>
+const eq = (a, b, m) => { if (a !== b) throw new Error(`${m || ''}: ${JSON.stringify(a)} != ${JSON.stringify(b)}`); };
+const match = (s, r) => { if (!r.test(s)) throw new Error(`${s} !~ ${r}`); };
+let clicked, command, sent, title, badge, fail = false, added = true;
+window.fetch = async () => { throw Error('no icon'); };
+const fake = {
+  runtime: { getURL: p => `chrome-extension://test${p}`,
+    sendNativeMessage: async (host, payload) => { sent = { host, payload }; if (fail) throw Error('Specified native messaging host not found.'); return { ok: true, result: { added } }; } },
+  action: { onClicked: { addListener: fn => { clicked = fn; } }, setBadgeText: async p => { badge = p.text; }, setBadgeBackgroundColor: async () => {}, setTitle: async p => { title = p.title; } },
+  commands: { onCommand: { addListener: fn => { command = fn; } } },
+  tabs: { query: async () => [{ id: 1, url: 'https://example.com', title: 'Page title' }] },
+};
+Object.defineProperty(window, 'chrome', { value: fake, configurable: true });
+</script>
+<script src="background.js"></script>
+<script src="State.js"></script>
+<script>
+(async () => {
+  let n = 0;
+  await command('save-bookmark');
+  eq(sent.host, 'com.omarchy.omakeep'); eq(sent.payload.title, 'Page title'); eq(sent.payload.favicon, ''); eq(badge, '✓'); eq(title, 'Saved to Omakeep'); n += 5;
+  added = false; await clicked({ id: 1, url: 'https://example.com', title: 'Page title' }); eq(title, 'Already saved in Omakeep'); n++;
+  fail = true; await command('save-bookmark'); eq(badge, '!'); match(title, /not connected/); n += 2;
+  await clicked({ id: 1, url: 'chrome://settings' }); match(title, /web page/); n++;
+  const S = window, state = S.create();
+  S.edit(state, 1, 'first'); S.flush(state); eq(S.next(state).notes, 'first');
+  S.edit(state, 1, 'second'); S.flush(state); S.edit(state, 1, 'latest'); S.flush(state); eq(state.queue.length, 1);
+  S.finish(state, true); eq(state.drafts[1].notes, 'latest'); eq(S.next(state).notes, 'latest'); S.finish(state, false); eq(S.next(state), null); eq(state.drafts[1].notes, 'latest');
+  S.edit(state, 1, 'retry newest'); S.retry(state); eq(S.next(state).notes, 'retry newest'); S.finish(state, true); eq(state.drafts[1], undefined);
+  S.edit(state, 2, 'pending'); S.flush(state); S.next(state); S.edit(state, 2, 'newer'); S.flush(state); S.enqueue(state, { op: 'deleteBookmark', id: 2 });
+  eq(state.drafts[2].notes, 'newer'); S.finish(state, true); eq(S.next(state).op, 'deleteBookmark'); S.finish(state, true); eq(state.drafts[2], undefined); eq(S.next(state), null);
+  S.edit(state, 3, 'a'); S.flush(state); S.next(state); S.edit(state, 3, 'b'); S.flush(state); S.edit(state, 3, 'a'); S.flush(state); S.finish(state, true); eq(S.next(state), null);
+  eq(!!S.safeUrl('https://[::1]:8000/a?b=c#d'), true);
+  for (const url of ['javascript:alert(1)', 'https://u:p@a.test', 'https://a.test\\@b.test']) eq(S.safeUrl(url), false);
+  n += 21;
+  const row = extra => ({ id: 1, url: 'https://a.test', title: 'A', folderId: null, favicon: '', hasNote: false, preview: '', ...extra });
+  const list = (items, folders = []) => ({ items, folders, next: null, total: items.length, all: items.length });
+  eq(S.validList(list([row()])), true); eq(S.validList({ items: 'x', folders: [] }), false); eq(S.validList(list(Array(101).fill(row()))), false);
+  eq(S.goodRows(list([row(), { id: 'x' }, null, row({ id: 2, url: 'javascript:x' }), row({ id: 3, favicon: null }), row({ id: 4, preview: 'x'.repeat(2000) })])).length, 2, 'bad rows drop alone');
+  eq(S.goodFolders(list([], [{ id: 1, name: 'A', count: 0 }, { id: 'x', name: 'B', count: 0 }, { id: 2, name: 'C', count: -1 }])).length, 1);
+  n += 5;
+  eq(S.hostOf('https://www.example.com:8080/a?b#c'), 'example.com'); eq(S.hostOf('not a link'), 'not a link');
+  eq(S.comma(3000), '3,000'); eq(S.comma(999), '999'); eq(S.comma(1234567), '1,234,567');
+  eq(S.plural(1, 'note'), '1 note'); eq(S.plural(2, 'note'), '2 notes');
+  eq(S.preview('line one\n\n  line   two', ''), 'line one line two', 'preview folds whitespace');
+  eq(S.preview('x'.repeat(300), '').length, 200); eq(S.preview('x'.repeat(100) + ' needle', 'needle').startsWith('…'), true);
+  eq(S.preview('x'.repeat(100) + ' needle', 'needle').includes('needle'), true);
+  eq(S.byteLength('é'), 2); eq(S.byteLength('a😀'), 5);
+  n += 13;
+  const folders = [{ id: 1, name: 'Dogma2' }, { id: 2, name: 'Useful' }];
+  eq(S.folderProblem('', folders, 0), 'Enter a folder name.'); eq(S.folderProblem('useful', folders, 0), 'That name is already used.');
+  eq(S.folderProblem('useful', folders, 2), ''); eq(S.folderProblem('é'.repeat(129), folders, 0), 'That name is too long.'); eq(S.folderProblem('New', folders, 0), '');
+  n += 5;
+  const notes = S.create();
+  eq(S.noteState(notes, 1, 0), 'idle'); eq(S.noteState(notes, 1, 1), 'saved');
+  S.edit(notes, 1, 'x'); S.flush(notes); eq(S.noteState(notes, 1, 0), 'saving'); S.next(notes); S.finish(notes, false); eq(S.noteState(notes, 1, 0), 'failed');
+  eq(S.failureText(notes, 1), '', 'an open note shows its own failure'); eq(S.failureText(notes, 2), '1 note not saved. Your text is kept in this window.');
+  const moves = S.create();
+  S.enqueue(moves, { op: 'move', id: 5 }); S.next(moves); S.finish(moves, false); eq(S.failureText(moves, 0), 'Moving the bookmark didn\'t save.');
+  const forms = S.create();
+  S.enqueue(forms, { op: 'capture', form: true }); S.next(forms); S.finish(forms, false); S.cancelFailedForm(forms, ['renameBookmark']); eq(forms.failed !== null, true, 'another form stays');
+  S.cancelFailedForm(forms, ['capture']); eq(forms.failed, null);
+  n += 8;
+  document.getElementById('out').textContent = `PASS ${n} checks in Chromium ${navigator.userAgent.match(/Chrome\/(\d+)/)[1]}`;
+})().catch(e => { document.getElementById('out').textContent = 'FAIL ' + e.message; });
+</script>

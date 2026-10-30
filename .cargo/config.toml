@@ -1,0 +1,11 @@
+# One static binary: no loader, no shared libraries, nothing a system upgrade can break.
+# Naming the target keeps the flag off proc-macros, which cannot be static.
+[build]
+target = "x86_64-unknown-linux-gnu"
+
+[target.x86_64-unknown-linux-gnu]
+rustflags = ["-C", "target-feature=+crt-static"]
+
+# SQLite features the helper never uses.
+[env]
+LIBSQLITE3_FLAGS = "-USQLITE_ENABLE_LOAD_EXTENSION -DSQLITE_OMIT_LOAD_EXTENSION -USQLITE_ENABLE_FTS3 -USQLITE_ENABLE_FTS3_PARENTHESIS -USQLITE_ENABLE_FTS5 -USQLITE_ENABLE_RTREE -USQLITE_ENABLE_DBSTAT_VTAB -USQLITE_ENABLE_STAT4 -USQLITE_ENABLE_COLUMN_METADATA -USQLITE_SOUNDEX -DSQLITE_DEFAULT_MEMSTATUS=0 -DSQLITE_OMIT_DEPRECATED"

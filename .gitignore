@@ -1,3 +1,2 @@
-run-helper
-native-host
+target/
 *.sqlite*
