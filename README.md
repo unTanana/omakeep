@@ -33,10 +33,11 @@ After editing QML, check the running window: this Omarchy version can retain old
 
 - Capture saves the URL, page title and an available favicon under **All**, with no folder. Success appears only after durable storage. The Omakeep window stays closed and browser focus stays put.
 - Capturing the same URL reports **Already saved** and preserves its title, notes and folder. Query strings and fragments are significant.
-- Open Omakeep later. Click anywhere on a row to open the page, or use **Note**, **Move** and the **⋮** menu, which every row always shows. Right-click a row, a folder or the empty list for its menu. Drag a bookmark onto a folder to move it, then **Undo** in the toast if you need to. Dragging is off below 760 pixels, where the sidebar is gone.
+- Open Omakeep later. Click anywhere on a row to open the page, which also closes Omakeep, or use **Note**, **Move** and the **⋮** menu, which every row always shows. Right-click a row, a folder or the empty list for its menu. Drag a bookmark onto a folder to move it, then **Undo** in the toast if you need to. Dragging is off below 760 pixels, where the sidebar is gone.
 - Notes save after a short pause and when leaving the editor. A row with a note shows its first line. The sidebar shows how many bookmarks each folder holds.
 - Add, rename and new folder all happen in place, with no popup. Adding a link you already saved says so and offers **Show it**.
 - Long titles stay on one line, with the full title in a tooltip and in the open row.
+- **Sort N with AI** at the bottom of the sidebar files every bookmark that has no folder, creating folders where it makes sense, then offers **Undo**. It runs your Omarchy default agent in print mode on that agent's own sign-in, so a Claude or ChatGPT subscription works with no API key. The agent sees titles and links, never notes, and can only move bookmarks with no folder. It works with Claude and Codex; other agents get a message saying so. It handles up to 200 at a time and takes a few seconds.
 - Failed saves retain the draft in the running window, including across searches and window hiding. Correct the issue and use **Retry**. An unsaved draft does not survive a shell crash/restart.
 - Deleting a folder keeps its bookmarks and notes in All. Bookmark and folder deletion require confirmation.
 - Search matches literal text in titles, URLs and notes within the current view. Manual add accepts a URL, an optional title and a folder; without a title, the hostname is used.

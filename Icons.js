@@ -24,3 +24,4 @@ var undo = "\u{F054C}";
 var all = "\u{F0E16}";
 var bookmark = "\u{F00C0}";
 var noResult = "\u{F0980}";
+var sort = "\u{F0674}";

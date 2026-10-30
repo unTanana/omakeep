@@ -18,6 +18,7 @@ fake() {
   chmod +x "$temp/fakes/$1/bin/omakeep-helper"
 }
 row() { printf '{"id":%s,"url":"https://%s.test","title":"Row %s","folderId":null,"favicon":"","hasNote":false,"preview":""}' "$1" "$1" "$1"; }
+fake sorted "cat >/dev/null; echo '{\"ok\":true,\"result\":{\"moved\":[{\"id\":1,\"folderId\":1}],\"created\":[]}}'"
 fake failing "cat >/dev/null; echo '{\"ok\":false,\"error\":\"Library is busy. Your draft is kept; retry.\"}'"
 fake odd "cat >/dev/null; echo '{\"ok\":true,\"result\":{\"folders\":[{\"id\":1,\"name\":\"Good\",\"count\":1},{\"id\":\"bad\"}],\"items\":[{\"id\":7,\"url\":\"https://good.test\",\"title\":\"Good row\",\"folderId\":1,\"favicon\":\"\",\"hasNote\":false,\"preview\":\"\"},{\"id\":\"x\"},null,{\"id\":8,\"url\":\"\",\"title\":\"\",\"folderId\":null,\"favicon\":\"\",\"hasNote\":false,\"preview\":\"\"}],\"next\":null,\"total\":3,\"all\":3}}'"
 page="{\"ok\":true,\"result\":{\"folders\":[],\"items\":[$(row 3 | sed 's/"/\\"/g'),$(row 2 | sed 's/"/\\"/g'),$(row 1 | sed 's/"/\\"/g')],\"next\":1,\"total\":4,\"all\":4}}"

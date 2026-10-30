@@ -6,6 +6,8 @@ import Quickshell.Io
 Item {
     id: root
     property string pluginDir: ""
+    property string mode: "--qml"
+    property string path: "/usr/bin:/bin"
     // Not process.running, which stays false until the run has really started. A second start in that gap makes the Process run twice.
     property bool busy: false
     property var request: null
@@ -15,7 +17,7 @@ Item {
     property bool overflow: false
     readonly property var processEnvironment: ({ HOME: Quickshell.env("HOME"), XDG_DATA_HOME: Quickshell.env("XDG_DATA_HOME"),
         XDG_RUNTIME_DIR: Quickshell.env("XDG_RUNTIME_DIR"), WAYLAND_DISPLAY: Quickshell.env("WAYLAND_DISPLAY"),
-        DBUS_SESSION_BUS_ADDRESS: Quickshell.env("DBUS_SESSION_BUS_ADDRESS"), PATH: "/usr/bin:/bin", LANG: "C.UTF-8" })
+        DBUS_SESSION_BUS_ADDRESS: Quickshell.env("DBUS_SESSION_BUS_ADDRESS"), PATH: root.path, LANG: "C.UTF-8" })
     signal completed()
 
     function start(value) {
@@ -48,8 +50,8 @@ Item {
     }
     Process {
         id: process
-        // One static binary from this folder, with its own eight-second limit.
-        command: [root.pluginDir + "/bin/omakeep-helper", "--qml"]
+        // One static binary from this folder, with its own time limit.
+        command: [root.pluginDir + "/bin/omakeep-helper", root.mode]
         clearEnvironment: true
         environment: root.processEnvironment
         stdinEnabled: true

@@ -467,6 +467,9 @@ fn chromium_may_only_capture() {
     for op in [
         json!({"op": "deleteBookmark", "id": 1}),
         json!({"op": "list"}),
+        json!({"op": "sortInput"}),
+        json!({"op": "applySort", "folders": {"x": [1]}}),
+        json!({"op": "undoSort", "moves": [], "created": [1]}),
         json!({"op": "note", "id": 1}),
         json!({"op": "saveNote", "id": 1, "notes": "x"}),
         json!({"op": "renameBookmark", "id": 1, "title": "x"}),
@@ -589,6 +592,96 @@ fn parallel_captures_all_land() {
     assert_eq!(lib.ok(json!({"op": "list"}))["all"], 9);
     assert_eq!(lib.ok(json!({"op": "note", "id": 1}))["notes"], "kept");
     assert_eq!(lib.db().query_row("PRAGMA integrity_check", [], |r| r.get::<_, String>(0)).unwrap(), "ok");
+}
+
+// A stand-in agent, so sorting is checked without a network or a sign-in.
+fn set_agent(lib: &Lib, name: &str, script: &str) {
+    let config = lib.0.join(".config/omarchy/defaults");
+    fs::create_dir_all(&config).unwrap();
+    fs::write(config.join("agent"), format!("{name}\n")).unwrap();
+    let bin = lib.0.join("bin");
+    fs::create_dir_all(&bin).unwrap();
+    fs::write(bin.join(name), format!("#!/bin/sh\n{script}\n")).unwrap();
+    fs::set_permissions(bin.join(name), fs::Permissions::from_mode(0o755)).unwrap();
+}
+
+fn sort(lib: &Lib) -> Value {
+    let out = lib.command("--sort").env("PATH", lib.0.join("bin")).stdin(Stdio::null()).output().unwrap();
+    assert_eq!(out.status.code(), Some(0), "stderr: {}", String::from_utf8_lossy(&out.stderr));
+    serde_json::from_slice(&out.stdout).unwrap()
+}
+
+fn folder_names(lib: &Lib) -> Vec<String> {
+    let list = lib.ok(json!({"op": "list"}));
+    list["folders"].as_array().unwrap().iter().map(|f| f["name"].as_str().unwrap().to_string()).collect()
+}
+
+fn folder_of(lib: &Lib, id: &Value) -> Value {
+    lib.ok(json!({"op": "list"}))["items"].as_array().unwrap().iter().find(|b| b["id"] == *id).unwrap()["folderId"].clone()
+}
+
+#[test]
+fn sorting_moves_only_bookmarks_without_a_folder() {
+    let lib = Lib::new("sort");
+    let useful = lib.ok(json!({"op": "createFolder", "name": "Useful"}))["id"].clone();
+    let other = lib.ok(json!({"op": "createFolder", "name": "Other"}))["id"].clone();
+    let add = |url: &str, title: &str, folder: Value| lib.ok(json!({"op": "capture", "url": url, "title": title, "folderId": folder}))["id"].clone();
+    let (a, b, c) = (add("https://a.test/", "Alpha", json!(null)), add("https://b.test/", "Beta", json!(null)), add("https://c.test/", "Gamma", json!(null)));
+    let filed = add("https://d.test/", "Delta", other.clone());
+    lib.ok(json!({"op": "saveNote", "id": a, "notes": "private words"}));
+    let answer = format!(
+        r#"Sure! ```json {{" useful ":[{a},"x"],"New Topic":[{b}],"Stolen":[{filed}],"Ghost":[9999],"":[{c}],"Odd":7}} ```"#
+    );
+    set_agent(&lib, "claude", &format!("/usr/bin/cat >\"$HOME/prompt.txt\"\necho '{answer}'"));
+    let reply = sort(&lib);
+    assert_eq!(reply["ok"], true, "{reply}");
+    let result = &reply["result"];
+    assert_eq!(result["moved"].as_array().unwrap().len(), 2, "{result}");
+    assert_eq!(result["created"].as_array().unwrap().len(), 1, "{result}");
+    assert_eq!(folder_names(&lib), ["New Topic", "Other", "Useful"]);
+    assert_eq!(folder_of(&lib, &a), useful);
+    assert_eq!(folder_of(&lib, &filed), other);
+    assert_eq!(folder_of(&lib, &c), Value::Null);
+    let prompt = fs::read_to_string(lib.0.join("prompt.txt")).unwrap();
+    assert!(prompt.contains("Gamma") && prompt.contains("https://a.test/"), "{prompt}");
+    assert!(prompt.contains("Delta"), "Filed titles are the folder's examples");
+    assert!(!prompt.contains("private words"), "Notes never leave");
+
+    lib.ok(json!({"op": "move", "id": a, "folderId": other}));
+    lib.ok(json!({"op": "undoSort", "moves": result["moved"], "created": result["created"]}));
+    assert_eq!(folder_of(&lib, &a), other, "A bookmark moved since stays where the user put it");
+    assert_eq!(folder_of(&lib, &b), Value::Null);
+    assert_eq!(folder_names(&lib), ["Other", "Useful"]);
+}
+
+#[test]
+fn a_bad_agent_answer_changes_nothing() {
+    let lib = Lib::new("sort-bad");
+    lib.ok(json!({"op": "capture", "url": "https://a.test/", "title": "Alpha"}));
+    let keep = fs::read(lib.file()).unwrap();
+    for script in ["echo not json", "echo '[1]'", "echo '{\"Late\":[{'", "exit 3", "echo '{\"Late\":[1]}'\nexit 3"] {
+        set_agent(&lib, "claude", script);
+        let reply = sort(&lib);
+        assert_eq!(reply["ok"], false, "{script}: {reply}");
+        assert_eq!(fs::read(lib.file()).unwrap(), keep, "{script}");
+    }
+}
+
+#[test]
+fn sorting_says_why_it_cannot_run() {
+    let lib = Lib::new("sort-refused");
+    lib.ok(json!({"op": "capture", "url": "https://a.test/", "title": "Alpha"}));
+    let error = |lib: &Lib| sort(lib)["error"].as_str().unwrap().to_string();
+    fs::create_dir_all(lib.0.join("bin")).unwrap();
+    assert!(error(&lib).contains("Claude or Codex"));
+    set_agent(&lib, "pi", "exit 0");
+    assert!(error(&lib).contains("Claude or Codex"));
+    set_agent(&lib, "claude", "exit 0");
+    fs::remove_file(lib.0.join("bin/claude")).unwrap();
+    assert!(error(&lib).contains("didn't answer"));
+    set_agent(&lib, "claude", "exit 0");
+    lib.ok(json!({"op": "deleteBookmark", "id": 1}));
+    assert!(error(&lib).contains("Nothing to sort"));
 }
 
 #[test]

@@ -60,6 +60,8 @@ Item {
     property int dropId: -1
     property var restoreRow: null
     property Item focusBefore: null
+    readonly property int unfiled: Math.max(0, folders.reduce(function(left, f) { return left - f.count; }, libraryCount))
+    readonly property string sortLabel: sorter.busy ? "Sorting…" : "Sort " + unfiled + " with AI"
     readonly property var alert: Commons.Color.polkit
     readonly property var barColors: Commons.Color.bar
     readonly property var menuColors: Commons.Color.menu
@@ -352,6 +354,10 @@ Item {
             if (index >= 0) bookmarks.remove(index);
             toast.show("Bookmark deleted");
             refreshCounts();
+        } else if (job.op === "undoSort") {
+            if (job.created.indexOf(folderId) >= 0) { folderId = 0; expandedId = 0; }
+            toast.show("Sort undone");
+            reload();
         } else if (job.op === "deleteFolder") {
             toast.show("Folder “" + name + "” deleted. Its bookmarks are in All.");
             if (folderId === job.id) { folderId = 0; expandedId = 0; reload(); }
@@ -380,8 +386,22 @@ Item {
         }
     }
 
+    function startSort() {
+        flush();
+        sorter.start({ op: "sort" });
+    }
+    function sorted(reply) {
+        if (!reply.ok) { toast.show(reply.error, true); return; }
+        var moved = reply.result.moved, created = reply.result.created;
+        reload();
+        if (!moved.length) { toast.show("No bookmark fit a folder."); return; }
+        var places = new Set(moved.map(function(m) { return m.folderId; })).size;
+        toast.show("Sorted " + State.plural(moved.length, "bookmark") + " into " + State.plural(places, "folder"), false, function() {
+            root.mutate({ op: "undoSort", moves: moved, created: created });
+        });
+    }
     function openLink(url) {
-        if (State.safeUrl(url)) Qt.openUrlExternally(url);
+        if (State.safeUrl(url)) { Qt.openUrlExternally(url); dismiss(); }
         else toast.show("This bookmark has an invalid URL.", true);
     }
     function copyLink(url) {
@@ -528,6 +548,7 @@ Item {
         });
         if (folders.length) entries.push("-");
         entries.push({ icon: Icons.folderPlus, label: "New folder…", run: function() { root.startNewFolder(null); } });
+        if (unfiled > 0 && !sorter.busy) entries.push({ icon: Icons.sort, label: sortLabel, run: function() { root.startSort(); } });
         holdFocus();
         popup().show(entries, at);
     }
@@ -626,6 +647,15 @@ Item {
             if (job.generation === undefined || job.generation === root.generation) root.readDone(job, reader.parsed());
             Qt.callLater(root.pumpRead);
         }
+    }
+    Helper {
+        id: sorter
+        objectName: "sorter"
+        pluginDir: root.pluginDir
+        mode: "--sort"
+        // The agent lives outside the fixed path the other helpers use. It still gets no other variables.
+        path: Quickshell.env("PATH") || "/usr/bin:/bin"
+        onCompleted: root.sorted(sorter.parsed())
     }
     Helper {
         id: writer
@@ -788,7 +818,7 @@ Item {
                             ListView {
                                 id: sideScroll
                                 width: parent.width
-                                height: Math.min(contentHeight, parent.height - newFolder.height - Style.space(5))
+                                height: Math.min(contentHeight, parent.height - newFolder.height - Style.space(5) - (sortButton.visible ? sortButton.height + Style.space(3) : 0))
                                 clip: true
                                 spacing: 2
                                 boundsBehavior: Flickable.StopAtBounds
@@ -849,6 +879,22 @@ Item {
                                 icon: Icons.plus
                                 label: "New folder"
                                 onClicked: root.startNewFolder(null)
+                            }
+                            KeepButton {
+                                id: sortButton
+                                objectName: "sortButton"
+                                visible: root.unfiled > 0 || sorter.busy
+                                enabled: !sorter.busy
+                                y: newFolder.y + newFolder.height + Style.space(3)
+                                width: parent.width
+                                implicitHeight: Style.space(30)
+                                leftAlign: true
+                                bordered: true
+                                size: "body"
+                                icon: Icons.sort
+                                label: root.sortLabel
+                                tooltipText: "Your default agent files bookmarks that have no folder. It sees their titles and links, not your notes."
+                                onClicked: root.startSort()
                             }
                         }
                     }

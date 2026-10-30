@@ -53,6 +53,7 @@ TestCase {
             saveFailure();
             newFolderAndPicker();
             mouseMenus();
+            aiSort();
             dragToFolder();
             confirmations();
             emptyFolder();
@@ -300,6 +301,22 @@ TestCase {
         tryCompare(app, "folderId", 0, 3000);
         idle();
     }
+    function aiSort() {
+        console.log("UI check: sort with AI");
+        var sorter = by("sorter");
+        tryVerify(function() { return shown("sortButton"); }, 3000, "Bookmarks with no folder offer the button");
+        sorter.pluginDir = fakes + "/failing";
+        click("sortButton");
+        tryVerify(function() { return shown("toast") && by("toast").bad; }, 5000, "A failed sort says so");
+        sorter.pluginDir = fakes + "/sorted";
+        click("sortButton");
+        tryVerify(function() { return shown("toastUndo"); }, 5000, "A sort can be undone");
+        compare(by("toast").message, "Sorted 1 bookmark into 1 folder");
+        click("toastUndo");
+        tryVerify(function() { return by("toast").message === "Sort undone"; }, 5000);
+        sorter.pluginDir = app.pluginDir;
+        idle();
+    }
     function mouseMenus() {
         console.log("UI check: mouse menus");
         var row = list.itemAtIndex(0);
@@ -309,7 +326,15 @@ TestCase {
         mouseClick(row, row.width / 2, 12); // The row opens its page. run-ui.sh checks the log for it.
         idle();
         compare(app.expandedId, 0, "A row click opens the page, not the note");
+        compare(app.opened, false, "Opening a page closes the panel");
+        app.open();
+        idle();
+        row = list.itemAtIndex(0);
         mouseClick(row, row.width / 2, 12, Qt.MiddleButton);
+        compare(app.opened, false, "So does a middle click");
+        app.open();
+        idle();
+        row = list.itemAtIndex(0);
         click("noteButton", row);
         tryCompare(app, "loadedNoteId", 1, 5000);
         click("closeNote", row);
@@ -511,6 +536,9 @@ TestCase {
         mouseMove(win.contentItem, from.x + 20, from.y + 40);
         compare(app.dragBookmark, null, "No drag without a sidebar");
         mouseRelease(win.contentItem, from.x + 20, from.y + 40);
+        compare(app.opened, false, "Without a drag the release is a click, which opens the page");
+        app.open();
+        idle();
         resize(Style.space(440), Style.space(400));
         compare(by("addButton").label === "" || app.compact, true);
         app.expand(1, false);

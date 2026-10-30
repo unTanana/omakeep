@@ -35,13 +35,13 @@ Follow Omamail's native window, compact toolbar, thin dividers and theme typogra
 | Region | Contents |
 | --- | --- |
 | Toolbar | Search, Add bookmark, Shortcuts and Close |
-| Sidebar | All, user folders with counts directly underneath, New folder pinned at the bottom |
+| Sidebar | All, user folders with counts directly underneath, New folder pinned at the bottom, with Sort with AI under it while bookmarks have no folder |
 | List header | Current view name and count; Rename and Delete only when a user folder is selected |
 | Row | Favicon, one-line title, site and folder, Note / Move / menu always visible, note preview |
 | Open row | Full title and link, note editor, save state, Open page, folder, Copy link, Rename, Delete |
 | Footer | Only while scrolling: Loading more, or a failed page with Retry |
 
-Clicking anywhere on a row opens the page; Note expands or collapses it. Expanding alone does not open the browser or move focus into the editor. Titles stay on one line with a tooltip and show in full in an open row; the row shows the full link on hover. Folder choices include No folder. Right-click gives a menu on rows, folders and the empty list. Drag a row onto a folder to move it, with Undo. Add, rename and new folder happen in place. Deleting a bookmark or folder requires confirmation. The approved mockup is kept outside this repo, in the omakeep-design folder.
+Clicking anywhere on a row opens the page and closes Omakeep; Note expands or collapses it. Expanding alone does not open the browser or move focus into the editor. Titles stay on one line with a tooltip and show in full in an open row; the row shows the full link on hover. Folder choices include No folder. Right-click gives a menu on rows, folders and the empty list. Drag a row onto a folder to move it, with Undo. Add, rename and new folder happen in place. Deleting a bookmark or folder requires confirmation. The approved mockup is kept outside this repo, in the omakeep-design folder.
 
 Use visible focus, accessible names and tooltips for icon buttons. Every text sink carrying a title, folder, note or error explicitly uses plain text. Keep notifications generic where host-owned controls cannot guarantee plain-text rendering.
 
@@ -133,6 +133,7 @@ Results of the 2026-10-30 rebuild. All of it ran on throwaway data.
 - `tests/lint.sh` and `omarchy plugin validate .`: passed against installed imports and the actual plugin tree. The lint wrapper checks JSON results because qmllint's JSON mode can return zero while reporting diagnostics.
 - Benchmark, ignored `cargo test` case: 10,000 bookmarks with 4,196-byte PNGs, 44.3 MiB. Median of fifteen cold helper runs: list 12 ms, search 13 ms, capture 25 ms. The Node helper measured 39 ms search and 54 ms capture on the same library.
 - 31 and 3,000 bookmarks in the panel on the real GPU (RTX 4090, 4K at 120 Hz, in a private headless gamescope, so times include up to two frames of waiting to present). First open with rows on screen 70 to 80 ms, reopen 6 ms, keystroke to results 21 ms, folder switch 14 to 21 ms, note open 25 ms, wheel and scrollbar a median of 9 to 10 ms a frame and worst about 20 ms. Closed, the panel made no CPU wake-ups at all.
+- Sort with AI on a copy of the real library, 33 bookmarks and no folders, Claude on a subscription. Agent startup alone is about 1.5 s, and Claude's background traffic added 1 to 4 s more, so it is switched off for this one call. Replying per folder instead of per bookmark cut the answer from about 830 to about 170 bytes. Together: about 4 s down to about 2 s, with the same 25 of 33 filed. Trimming links and titles saved nothing and filed fewer. Haiku took 5.4 to 6 s, so Sonnet stays.
 - Real Chromium with the unpacked extension, on a throwaway profile with the installed host registration: save, duplicate, title and favicon kept, every other operation refused, the extension ID unchanged.
 - Remaining manual gate: the toolbar button and Alt+Shift+K pressed by a person, and the visual look on the real desktop. The panel's real Wayland window was only opened once, for a read check.
 

@@ -113,7 +113,7 @@ function failureText(state, openId) {
     if (!state.failed) return "";
     var waiting = Object.keys(state.drafts).filter(function (key) { return Number(key) !== openId; }).length;
     if (waiting) return plural(waiting, "note") + " not saved. Your text is kept in this window.";
-    var labels = { capture: "Adding the bookmark", move: "Moving the bookmark", renameBookmark: "Renaming the bookmark",
+    var labels = { undoSort: "Undoing the sort", capture: "Adding the bookmark", move: "Moving the bookmark", renameBookmark: "Renaming the bookmark",
         deleteBookmark: "Deleting the bookmark", createFolder: "Creating the folder", renameFolder: "Renaming the folder", deleteFolder: "Deleting the folder" };
     return labels[state.failed.op] ? labels[state.failed.op] + " didn't save." : "";
 }
