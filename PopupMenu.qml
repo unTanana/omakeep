@@ -142,6 +142,7 @@ Item {
                 model: root.items
                 boundsBehavior: Flickable.StopAtBounds
                 Controls.ScrollBar.vertical: Controls.ScrollBar { policy: view.contentHeight > view.height ? Controls.ScrollBar.AlwaysOn : Controls.ScrollBar.AlwaysOff }
+                TouchpadScroll { flickable: view }
                 delegate: Item {
                     id: entry
                     required property var modelData

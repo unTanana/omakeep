@@ -5,6 +5,7 @@ import QtTest
 import qs.Commons
 import qs.Commons as Commons
 import "../.." as Omakeep
+import "../../ScrollPhysics.js" as Scroll
 
 // One long walk through the real panel on a throwaway library: real keys, a real
 // mouse, the real helper. Fake helpers stand in only where a failure is the point.
@@ -14,6 +15,24 @@ TestCase {
     when: windowShown
     width: 920; height: 700
     Omakeep.App { id: app }
+    // TouchpadScroll on plain lists, driven with fake wheel events and a hand-set clock.
+    ListView {
+        id: probe
+        width: 300; height: 200; clip: true
+        model: 1000
+        delegate: Rectangle { required property int index; width: 300; height: 20; color: index % 2 ? "#222" : "#333" }
+        Omakeep.TouchpadScroll { id: probeScroll; flickable: probe; notchPx: 100 }
+    }
+    Flickable {
+        id: outer
+        x: 320; width: 300; height: 200; clip: true
+        contentHeight: 600
+        Item { // Positioners need a window to lay out, so places are fixed.
+            width: 300; height: 600
+            ListView { id: inner; y: 100; width: 300; height: 100; clip: true; model: 50; delegate: Rectangle { width: 300; height: 20 } }
+        }
+        Omakeep.TouchpadScroll { id: outerScroll; flickable: outer }
+    }
     property var win: null
     property var list: null
     property var search: null
@@ -59,6 +78,7 @@ TestCase {
             emptyFolder();
             rowsNeverBlank();
             scrollFailures();
+            touchpadScrolling();
             narrow();
             lightTheme();
             app.close();
@@ -500,6 +520,63 @@ TestCase {
         app.reload();
         tryCompare(list, "count", 1, 5000);
         idle();
+    }
+    function stroke(handler, pixels, count, lift, x, y) {
+        function event(phase, delta) { return { phase: phase, pixelDelta: Qt.point(0, delta), angleDelta: Qt.point(0, delta * 8), x: x || 20, y: y || 20, accepted: false }; }
+        // Real strokes reach Qt Quick with ScrollBegin and ScrollEnd twice; the repeated End must not stop the glide.
+        Scroll.testNowMs += 1000;
+        handler.handle(event(Qt.ScrollBegin, 0));
+        handler.handle(event(Qt.ScrollBegin, 0));
+        for (var i = 0; i < count; i++) { Scroll.testNowMs += 8; handler.handle(event(Qt.ScrollUpdate, pixels)); }
+        if (!lift) Scroll.testNowMs += 150;
+        handler.handle(event(Qt.ScrollEnd, 0));
+        handler.handle(event(Qt.ScrollEnd, 0));
+    }
+    function settled(handler) { Scroll.testNowMs = 0; tryVerify(function() { return !handler.active; }, 5000, "the scroller did not settle"); }
+    function touchpadScrolling() {
+        console.log("UI check: touchpad strokes, glide, rubber band and wheel clicks");
+        probe.parent = outer.parent = win.contentItem; // TestCase is hidden, and hidden items are not found by position.
+        Scroll.testNowMs = 0;
+        probe.contentY = 0;
+        stroke(probeScroll, -20, 6, false);
+        compare(probe.contentY, 600, "A held stroke moves 5x its pixels");
+        verify(!probeScroll.tailRunning, "Fingers that stopped before lifting do not glide");
+        settled(probeScroll);
+        probe.contentY = 0;
+        stroke(probeScroll, -20, 6, true);
+        verify(probeScroll.tailRunning, "Fingers that lift while moving glide");
+        settled(probeScroll);
+        // The closed form of the whole glide at the fastest lift speed.
+        var glide = (Scroll.MAX_V_PX_PER_MS - Scroll.STOP_V_PX_PER_MS) / -Math.log(Scroll.MOMENTUM_DECAY);
+        verify(Math.abs(probe.contentY - 600 - glide) < 24, "The glide follows the decay curve: " + probe.contentY + " vs " + (600 + glide));
+        probe.contentY = 19600;
+        stroke(probeScroll, -20, 6, true);
+        tryVerify(function() { return probe.contentY > 19801; }, 2000, "A glide into the end stretches past it");
+        settled(probeScroll);
+        compare(probe.contentY, 19800, "and springs back to the end");
+        probe.contentY = 0;
+        stroke(probeScroll, 30, 4, false);
+        verify(probe.contentY < -1, "Pulling at the top stretches");
+        settled(probeScroll);
+        compare(probe.contentY, 0, "and springs back to the top");
+        probeScroll.handle({ phase: Qt.NoScrollPhase, pixelDelta: Qt.point(0, -15), angleDelta: Qt.point(0, -120), x: 20, y: 20, accepted: false });
+        compare(probe.contentY, 100, "A wheel click moves its step, not the pixels Qt adds to it");
+        compare(outerScroll.notchPx, 75, "The default wheel step stops at three eighths of a short view");
+        compare(probeScroll.notchPx, 100);
+        probe.contentY = 0;
+        stroke(probeScroll, -2, 3, true);
+        verify(probeScroll.tailRunning);
+        Scroll.testNowMs = 0;
+        wait(100);
+        probe.contentY = 50;
+        verify(!probeScroll.tailRunning, "Any other move of the view stops a glide");
+        stroke(outerScroll, -20, 3, false, 20, 150);
+        verify(outerScroll.yielding === false && outer.contentY === 0, "A stroke over a scroll area inside goes to that area");
+        stroke(outerScroll, -10, 3, false, 20, 50);
+        compare(outer.contentY, 150, "A stroke elsewhere scrolls the outer view");
+        settled(outerScroll);
+        Scroll.testNowMs = -1;
+        probe.parent = outer.parent = test;
     }
     function narrow() {
         console.log("UI check: narrow");

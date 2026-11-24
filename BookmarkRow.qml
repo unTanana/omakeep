@@ -370,7 +370,9 @@ Item {
                 id: note
                 readonly property bool ready: row.app.loadedNoteId === row.rowId
                 spacing: Style.space(5)
+                TouchpadScroll { flickable: noteScroll.contentItem }
                 Controls.ScrollView {
+                    id: noteScroll
                     Layout.fillWidth: true
                     Layout.preferredHeight: Math.max(Style.space(103), Math.min(editor.contentHeight + editor.topPadding + editor.bottomPadding, Style.space(283)))
                     clip: true

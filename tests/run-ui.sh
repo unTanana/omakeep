@@ -10,7 +10,7 @@ mkdir -p "$temp/omakeep/bin" "$temp/data"
 chmod 700 "$temp/data"
 cp "$repo"/*.qml "$repo"/*.js "$temp/omakeep/"
 cp "$repo/bin/omakeep-helper" "$temp/omakeep/bin/"
-sed -e 's|import "../.."|import "omakeep"|' -e 's|when: windowShown|when: true|' "$repo/tests/qml/tst_ui.qml" >"$temp/test.qml"
+sed -e 's|import "\.\./\.\.|import "omakeep|' -e 's|when: windowShown|when: true|' "$repo/tests/qml/tst_ui.qml" >"$temp/test.qml"
 # Stand-ins for the helper, only where a failure or an odd reply is the point of the check.
 fake() {
   mkdir -p "$temp/fakes/$1/bin"

@@ -61,6 +61,7 @@ Rectangle {
             interactive: contentHeight > height
             boundsBehavior: Flickable.StopAtBounds
             clip: true
+            TouchpadScroll { flickable: scroller }
             FocusScope {
                 width: scroller.width
                 height: box.implicitHeight

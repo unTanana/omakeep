@@ -823,6 +823,7 @@ Item {
                                 spacing: 2
                                 boundsBehavior: Flickable.StopAtBounds
                                 Controls.ScrollBar.vertical: Controls.ScrollBar { policy: sideScroll.contentHeight > sideScroll.height ? Controls.ScrollBar.AsNeeded : Controls.ScrollBar.AlwaysOff }
+                                TouchpadScroll { flickable: sideScroll }
                                 model: folderRows
                                 header: Column {
                                     width: sideScroll.width
@@ -1084,15 +1085,11 @@ Item {
                                         visible: listBar.size < 1
                                     }
                                 }
-                                WheelHandler {
+                                // Touchpad strokes glide; a wheel click moves Flea's step (TouchpadScroll.qml).
+                                TouchpadScroll {
+                                    objectName: "bookmarkScroll"
+                                    flickable: list
                                     enabled: root.dragBookmark === null
-                                    acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
-                                    orientation: Qt.Vertical
-                                    onWheel: function(event) {
-                                        var pixels = event.pixelDelta.y || event.angleDelta.y / 120 * Style.space(100);
-                                        var top = list.originY, end = Math.max(top, top + list.contentHeight - list.height);
-                                        list.contentY = Math.max(top, Math.min(end, list.contentY - pixels));
-                                    }
                                 }
                                 delegate: BookmarkRow {
                                     id: rowItem
