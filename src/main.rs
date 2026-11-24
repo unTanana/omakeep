@@ -669,19 +669,82 @@ fn run(req: &Value) -> R<String> {
     };
     let dir = directory(&format!("{base}/omakeep"), true)?;
     let op = req.get("op").and_then(Value::as_str).unwrap_or("");
-    if !matches!(op, "list" | "note" | "sortInput") {
+    let copies = conflict_copies(&dir)?;
+    if !copies.is_empty() || !matches!(op, "list" | "note" | "sortInput") {
         lock(&dir)?;
     }
     let mut db = database(open_private(&dir, "bookmarks.sqlite")?)?;
+    let folded = fold_in(&db, &dir, copies)?;
     let (result, write) = operate(&db, req)?;
-    if write {
+    if write || !folded.is_empty() {
         // ponytail: one locked snapshot, capped at 64 MiB; use a descriptor-safe disk API if larger libraries need it.
         let pages: i64 = db.query_row("PRAGMA page_count", [], |r| r.get(0))?;
         let page: i64 = db.query_row("PRAGMA page_size", [], |r| r.get(0))?;
         check((pages * page) as u64 <= MAX_DATABASE, "Library limit reached (64 MiB).")?;
         write_private(&dir, "bookmarks.sqlite", &db.serialize(MAIN_DB)?)?;
+        // Only once the merged library is on disk. A copy left behind folds in again next time, with the same result.
+        for name in &folded {
+            let _ = fs::unlinkat(&dir, name.as_str(), AtFlags::empty());
+        }
     }
     Ok(result)
+}
+
+// Syncthing keeps a conflict copy beside the library when two computers changed it while apart.
+fn conflict_copies(dir: &OwnedFd) -> R<Vec<String>> {
+    let mut names = Vec::new();
+    for entry in fs::Dir::read_from(dir)? {
+        let name = entry?.file_name().to_string_lossy().into_owned();
+        if name.starts_with("bookmarks.sync-conflict-") && name.ends_with(".sqlite") {
+            names.push(name);
+        }
+    }
+    Ok(names)
+}
+
+// Folds each copy into the library; a copy that does not open stays for a person to look at.
+// ponytail: deletions are not remembered, so a bookmark deleted on one side of a clash comes back, and a folder
+// renamed on one side comes back as an extra folder. Keep deletions with a time if that ever matters. A merge that
+// passes the 64 MiB cap fails every request until the copy is moved away; the library is far below it today.
+fn fold_in(db: &Connection, dir: &OwnedFd, copies: Vec<String>) -> R<Vec<String>> {
+    let mut folded = Vec::new();
+    for name in copies {
+        let Ok(Some(file)) = open_private(dir, &name) else { continue };
+        db.execute_batch("SAVEPOINT fold")?;
+        match database(Some(file)).and_then(|copy| fold(db, &copy)) {
+            Ok(()) => {
+                db.execute_batch("RELEASE fold")?;
+                folded.push(name);
+            }
+            Err(_) => db.execute_batch("ROLLBACK TO fold; RELEASE fold")?,
+        }
+    }
+    Ok(folded)
+}
+
+// Per bookmark (one per link) the newer change wins; folders match by name.
+fn fold(db: &Connection, copy: &Connection) -> R<()> {
+    let mut folders = copy.prepare("SELECT name FROM folders")?;
+    for name in folders.query_map([], |r| r.get::<_, String>(0))? {
+        db.execute("INSERT OR IGNORE INTO folders(name) VALUES(?)", [name?])?;
+    }
+    let mut rows = copy.prepare(
+        "SELECT b.url,b.title,b.notes,f.name,b.favicon,b.createdAt,b.updatedAt
+         FROM bookmarks b LEFT JOIN folders f ON f.id=b.folderId",
+    )?;
+    let mut upsert = db.prepare(
+        "INSERT INTO bookmarks(url,title,notes,folderId,favicon,createdAt,updatedAt)
+         VALUES(?1,?2,?3,(SELECT id FROM folders WHERE name=?4),?5,?6,?7)
+         ON CONFLICT(url) DO UPDATE SET title=excluded.title,notes=excluded.notes,folderId=excluded.folderId,
+           favicon=excluded.favicon,updatedAt=excluded.updatedAt
+         WHERE excluded.updatedAt>bookmarks.updatedAt",
+    )?;
+    let mut rows = rows.query([])?;
+    while let Some(row) = rows.next()? {
+        let values = (0..7).map(|i| row.get::<_, rusqlite::types::Value>(i)).collect::<Result<Vec<_>, _>>()?;
+        upsert.execute(rusqlite::params_from_iter(values))?;
+    }
+    Ok(())
 }
 
 // Print mode of the user's default Omarchy agent, on its own sign-in. The panel starts this helper with a clean

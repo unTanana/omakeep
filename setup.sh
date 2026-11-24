@@ -1,6 +1,6 @@
 #!/bin/bash
 # Registers Omakeep with this desktop. Nothing here runs on its own, and it installs no packages.
-# Usage: ./setup.sh prepare|install|remove [chromium|google-chrome], or ./setup.sh shortcut|unshortcut
+# Usage: ./setup.sh prepare|install|remove [chromium|google-chrome|brave], or ./setup.sh shortcut|unshortcut
 set -euo pipefail
 umask 077
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
@@ -29,10 +29,11 @@ owned_write() { # target mode content: refuse to replace someone else's file
 
 setup() {
   local action=$1 browser=${2:-chromium} id hosts host plugins link
-  [[ $action == prepare || $action == install || $action == remove ]] || die "Use: ./setup.sh prepare|install|remove [chromium|google-chrome]"
-  [[ $browser == chromium || $browser == google-chrome ]] || die "Unsupported browser."
+  [[ $action == prepare || $action == install || $action == remove ]] || die "Use: ./setup.sh prepare|install|remove [chromium|google-chrome|brave]"
+  [[ $browser == chromium || $browser == google-chrome || $browser == brave ]] || die "Unsupported browser."
   id=$(extension_id)
   if [[ $action != remove ]]; then
+    ln -sfn -- "omakeep-helper-$(uname -m)" "$helper" # this machine's build
     [[ -x $helper ]] || die "Missing $helper. Run ./build.sh."
     "$helper" --version >/dev/null 2>&1 || die "$helper does not run on this system."
   fi
@@ -40,6 +41,7 @@ setup() {
     jq -n --arg id "$id" --arg path "$root/extension" '{extensionId:$id,extensionPath:$path}'; return
   fi
   hosts=$config/$browser/NativeMessagingHosts
+  [[ $browser != brave ]] || hosts=$config/BraveSoftware/Brave-Browser/NativeMessagingHosts
   host=$hosts/$host_name.json
   plugins=$config/omarchy/plugins
   link=$plugins/omakeep
@@ -61,7 +63,7 @@ setup() {
   jq -n --arg id "$id" --arg b "$browser" --arg path "$root/extension" '{extensionId:$id,browser:$b,extensionPath:$path,plugin:"omakeep"}'
 }
 
-binding=$'\n-- BEGIN Omakeep shortcut\no.bind("SUPER + SHIFT + K", "Omakeep", "omarchy shell shell toggle omakeep \'{}\'")\n-- END Omakeep shortcut\n'
+binding=$'\n-- BEGIN Omakeep shortcut\no.bind("SUPER + SHIFT + K", "Omakeep", "omarchy shell shell toggle omakeep \'{}\'")\no.window({ class = "^org\\\\.quickshell$", title = "^Omakeep$" }, { float = true, center = true, size = { "(monitor_w*0.6)", "(monitor_h*0.8)" } })\n-- END Omakeep shortcut\n'
 shortcut() {
   local remove=$1 file=$config/hypr/bindings.lua source updated backups
   [[ -f $file ]] || die "No Hyprland bindings.lua found."

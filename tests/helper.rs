@@ -517,6 +517,43 @@ fn the_panel_files_a_new_bookmark_in_one_step() {
 }
 
 #[test]
+fn a_sync_conflict_copy_is_folded_in() {
+    let lib = Lib::new("sync-conflict");
+    lib.ok(json!({"op": "createFolder", "name": "Mine"}));
+    lib.ok(json!({"op": "capture", "url": "https://a.test/", "title": "A"}));
+    lib.ok(json!({"op": "capture", "url": "https://b.test/", "title": "B"}));
+    // The other computer's version of the same library: A renamed later, B renamed earlier, C added in a new folder.
+    let copy = lib.folder().join("bookmarks.sync-conflict-20261124-120000-ABCDEFG.sqlite");
+    fs::copy(lib.file(), &copy).unwrap();
+    Connection::open(&copy)
+        .unwrap()
+        .execute_batch(
+            "UPDATE bookmarks SET title='A theirs', updatedAt=updatedAt+60000 WHERE url='https://a.test/';
+             UPDATE bookmarks SET title='B theirs', updatedAt=1 WHERE url='https://b.test/';
+             INSERT INTO folders(name) VALUES('Theirs');
+             INSERT INTO bookmarks(url,title,folderId,createdAt,updatedAt)
+               VALUES('https://c.test/','C',(SELECT id FROM folders WHERE name='Theirs'),1,1);",
+        )
+        .unwrap();
+    let junk = lib.folder().join("bookmarks.sync-conflict-20261124-130000-HIJKLMN.sqlite");
+    fs::write(&junk, b"not a library").unwrap();
+    fs::set_permissions(&junk, fs::Permissions::from_mode(0o600)).unwrap();
+
+    assert_eq!(lib.ok(json!({"op": "list"}))["all"], 3, "a plain read folds the copy in");
+    let db = lib.db();
+    let title = |url: &str| -> String { db.query_row("SELECT title FROM bookmarks WHERE url=?", [url], |r| r.get(0)).unwrap() };
+    assert_eq!(title("https://a.test/"), "A theirs", "their newer change wins");
+    assert_eq!(title("https://b.test/"), "B", "our newer change stays");
+    let folder: String = db
+        .query_row("SELECT f.name FROM bookmarks b JOIN folders f ON f.id=b.folderId WHERE url='https://c.test/'", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(folder, "Theirs");
+    assert_eq!(db.query_row("SELECT count(*) FROM folders", [], |r| r.get::<_, i64>(0)).unwrap(), 2);
+    assert!(!copy.exists(), "a folded copy is removed");
+    assert!(junk.exists(), "a copy that does not open stays");
+}
+
+#[test]
 fn frames_are_bounded() {
     let lib = Lib::new("frames");
     let refused = |bytes: &[u8], want: &str| {
@@ -687,7 +724,9 @@ fn sorting_says_why_it_cannot_run() {
 #[test]
 fn the_binary_stands_alone() {
     let out = Command::new("/usr/bin/ldd").arg(HELPER).output().unwrap();
-    assert!(String::from_utf8_lossy(&out.stdout).contains("statically linked"), "{out:?}");
+    // x86_64 builds a static PIE ("statically linked"); aarch64 a plain static binary ("not a dynamic executable").
+    let said = String::from_utf8_lossy(&[out.stdout.as_slice(), out.stderr.as_slice()].concat()).into_owned();
+    assert!(said.contains("statically linked") || said.contains("not a dynamic executable"), "{out:?}");
 }
 
 // cargo test --release -- --ignored --nocapture

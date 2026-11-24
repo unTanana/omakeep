@@ -1,9 +1,6 @@
 # One static binary: no loader, no shared libraries, nothing a system upgrade can break.
-# Naming the target keeps the flag off proc-macros, which cannot be static.
-[build]
-target = "x86_64-unknown-linux-gnu"
-
-[target.x86_64-unknown-linux-gnu]
+# build.sh and test.sh name this machine's target, which keeps the flag off proc-macros (they cannot be static).
+[target.'cfg(target_env = "gnu")']
 rustflags = ["-C", "target-feature=+crt-static"]
 
 # SQLite features the helper never uses.

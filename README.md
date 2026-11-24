@@ -2,11 +2,11 @@
 
 Local bookmarks, notes and folders for Omarchy. Save a page from Chromium/Chrome, keep browsing, and edit it later in a native window.
 
-QML, plain JavaScript and SQLite, with one small Rust helper. No Node, Python, npm packages, HTTP server or persistent helper process. The helper is a single static binary kept in the repo at `bin/omakeep-helper`, so using Omakeep needs no Rust and no install step beyond setup.
+QML, plain JavaScript and SQLite, with one small Rust helper. No Node, Python, npm packages, HTTP server or persistent helper process. The helper is a single static binary kept in the repo for each chip (`bin/omakeep-helper-x86_64`, `bin/omakeep-helper-aarch64`); setup links `bin/omakeep-helper` to this machine's, so using Omakeep needs no Rust and no install step beyond setup.
 
 ## Local setup
 
-Requires Omarchy Quattro on x86_64. Setup uses `jq`, `base64` and `sha256sum`, and browser saves use `notify-send`; Omarchy ships all of them. Nothing else is needed at run time. Setup does not install packages or download anything.
+Requires Omarchy Quattro on x86_64 or aarch64. Setup uses `jq`, `base64` and `sha256sum`, and browser saves use `notify-send`; Omarchy ships all of them. Nothing else is needed at run time. Setup does not install packages or download anything.
 
 From this checkout:
 
@@ -17,15 +17,19 @@ omarchy plugin enable omakeep --section right
 ./setup.sh shortcut
 ```
 
-Use `google-chrome` instead of `chromium` for Google Chrome. Registration applies to that browser's normal user-data directory. Custom `--user-data-dir` installations need their own native-host registration.
+Use `google-chrome` instead of `chromium` for Google Chrome, or `brave` for Brave. Registration applies to that browser's normal user-data directory. Custom `--user-data-dir` installations need their own native-host registration.
 
 In that browser, open `chrome://extensions`, enable **Developer mode**, choose **Load unpacked**, and select this checkout's `extension` directory. Pin Omakeep's toolbar button so its success/error badge is visible. Its stable extension ID is `lefgnegnkcnkapehnnkfnkmdfiaahnmf`.
 
-**Alt+Shift+K** saves the active page. Change that shortcut at `chrome://extensions/shortcuts` if necessary. **Super+Shift+K** opens Omakeep; setup refuses to replace an existing binding. The global shortcut is optional; the bar icon also opens the library.
+**Alt+Shift+K** saves the active page. Change that shortcut at `chrome://extensions/shortcuts` if necessary. **Super+Shift+K** opens Omakeep; setup refuses to replace an existing binding. The same step makes the window open floating and centered. The global shortcut is optional; the bar icon also opens the library.
 
 Keep the checkout in place: setup links the plugin to it, and the browser registration holds the absolute path of `bin/omakeep-helper`. After moving the checkout, remove the old setup and run setup again. `./setup.sh prepare` only checks that the helper runs and prints the extension ID and folder.
 
-To change the helper, edit `src/`, then run `./build.sh`. That is the only step that needs Rust. It uses the pinned toolchain through mise when mise is there, otherwise your `cargo`, and keeps build output outside the plugin folder because the shell reloads on any change inside it.
+To change the helper, edit `src/`, then run `./build.sh` on each kind of machine (it builds for the chip it runs on). That is the only step that needs Rust. It uses the pinned toolchain through mise when mise is there, otherwise your `cargo`, and keeps build output outside the plugin folder because the shell reloads on any change inside it.
+
+## Sync between computers
+
+Share `~/.local/share/omakeep` with Syncthing and ignore `.omakeep-*` (the helper's temporary files). The library is one file, replaced whole on each change. When two computers change it while apart, Syncthing keeps a conflict copy beside it; the next Omakeep run folds that copy in (per bookmark the newer change wins, folders match by name) and deletes it. Deletions are not remembered, so a bookmark deleted on one side of such a clash comes back.
 
 After editing QML, check the running window: this Omarchy version can retain old components even after `rescanPlugins`. If it does, let pending edits finish, run `omarchy restart shell`, then reopen Omakeep. This restarts the shared desktop shell.
 
