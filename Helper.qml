@@ -50,7 +50,7 @@ Item {
     }
     Process {
         id: process
-        // One static binary from this folder, with its own time limit.
+        // This folder's helper (a script that starts the static binary for this chip), with its own time limit.
         command: [root.pluginDir + "/bin/omakeep-helper", root.mode]
         clearEnvironment: true
         environment: root.processEnvironment

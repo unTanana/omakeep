@@ -1,0 +1,4 @@
+#!/bin/bash
+# Starts this machine's build of the helper; one static binary per chip sits beside this script.
+# A script, not a link: Omarchy refuses symlinks inside a plugin folder.
+exec "${BASH_SOURCE[0]%/*}/omakeep-helper-$HOSTTYPE" "$@"

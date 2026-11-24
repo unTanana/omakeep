@@ -33,7 +33,6 @@ setup() {
   [[ $browser == chromium || $browser == google-chrome || $browser == brave ]] || die "Unsupported browser."
   id=$(extension_id)
   if [[ $action != remove ]]; then
-    ln -sfn -- "omakeep-helper-$(uname -m)" "$helper" # this machine's build
     [[ -x $helper ]] || die "Missing $helper. Run ./build.sh."
     "$helper" --version >/dev/null 2>&1 || die "$helper does not run on this system."
   fi

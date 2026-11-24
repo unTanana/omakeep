@@ -7,8 +7,8 @@ trap 'rm -rf -- "$T"' EXIT
 mkdir -p "$T/repo/extension" "$T/repo/bin" "$T/config/hypr" "$T/data/omakeep"
 cp "$repo/setup.sh" "$T/repo/"
 cp "$repo/extension/manifest.json" "$T/repo/extension/"
-printf '#!/bin/sh\nexit 0\n' >"$T/repo/bin/omakeep-helper-$(uname -m)"
-chmod +x "$T/repo/bin/omakeep-helper-$(uname -m)"
+printf '#!/bin/sh\nexit 0\n' >"$T/repo/bin/omakeep-helper"
+chmod +x "$T/repo/bin/omakeep-helper"
 cat >"$T/hyprctl" <<'H'
 #!/bin/bash
 echo "$@" >>"$FAKE_LOG"

@@ -2,7 +2,7 @@
 
 Local bookmarks, notes and folders for Omarchy. Save a page from Chromium/Chrome, keep browsing, and edit it later in a native window.
 
-QML, plain JavaScript and SQLite, with one small Rust helper. No Node, Python, npm packages, HTTP server or persistent helper process. The helper is a single static binary kept in the repo for each chip (`bin/omakeep-helper-x86_64`, `bin/omakeep-helper-aarch64`); setup links `bin/omakeep-helper` to this machine's, so using Omakeep needs no Rust and no install step beyond setup.
+QML, plain JavaScript and SQLite, with one small Rust helper. No Node, Python, npm packages, HTTP server or persistent helper process. The helper is a single static binary kept in the repo for each chip (`bin/omakeep-helper-x86_64`, `bin/omakeep-helper-aarch64`); `bin/omakeep-helper` is a short script that starts this machine's, so using Omakeep needs no Rust and no install step beyond setup.
 
 ## Local setup
 

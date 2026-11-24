@@ -9,7 +9,7 @@ for name in Commons Ui services; do cp -r "/usr/share/omarchy/shell/$name" "$tem
 mkdir -p "$temp/omakeep/bin" "$temp/data"
 chmod 700 "$temp/data"
 cp "$repo"/*.qml "$repo"/*.js "$temp/omakeep/"
-cp "$repo/bin/omakeep-helper" "$temp/omakeep/bin/"
+cp "$repo"/bin/omakeep-helper* "$temp/omakeep/bin/"
 sed -e 's|import "\.\./\.\.|import "omakeep|' -e 's|when: windowShown|when: true|' "$repo/tests/qml/tst_ui.qml" >"$temp/test.qml"
 # Stand-ins for the helper, only where a failure or an odd reply is the point of the check.
 fake() {
