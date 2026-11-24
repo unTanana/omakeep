@@ -20,16 +20,22 @@ TestCase {
         id: probe
         width: 300; height: 200; clip: true
         model: 1000
+        interactive: false // like the bookmark list: Qt springs nothing back on release
         delegate: Rectangle { required property int index; width: 300; height: 20; color: index % 2 ? "#222" : "#333" }
+        MouseArea { parent: probe; anchors.fill: parent; z: -1 } // takes presses, as a list row does
         Omakeep.TouchpadScroll { id: probeScroll; flickable: probe; notchPx: 100 }
     }
     Flickable {
         id: outer
         x: 320; width: 300; height: 200; clip: true
         contentHeight: 600
-        Item { // Positioners need a window to lay out, so places are fixed.
+        Item { // Built like a bookmark row; positioners need a window to lay out, so places are fixed.
             width: 300; height: 600
-            ListView { id: inner; y: 100; width: 300; height: 100; clip: true; model: 50; delegate: Rectangle { width: 300; height: 20 } }
+            Item { // no height, like the row's text column
+                width: 300
+                ListView { id: inner; y: 100; width: 300; height: 100; clip: true; model: 50; delegate: Rectangle { width: 300; height: 20 } }
+            }
+            Item { anchors.fill: parent } // declared last and over everything, like the row's highlight layer
         }
         Omakeep.TouchpadScroll { id: outerScroll; flickable: outer }
     }
@@ -554,6 +560,13 @@ TestCase {
         tryVerify(function() { return probe.contentY > 19801; }, 2000, "A glide into the end stretches past it");
         settled(probeScroll);
         compare(probe.contentY, 19800, "and springs back to the end");
+        probe.contentY = 16200;
+        stroke(probeScroll, -20, 6, true);
+        tryVerify(function() { return probeScroll.tailRunning && probeScroll.over !== 0; }, 3000, "A glide runs on past the end");
+        mousePress(probe, 20, 20);
+        mouseRelease(probe, 20, 20);
+        settled(probeScroll);
+        compare(probe.contentY, 19800, "A press while the list is stretched still springs it back");
         probe.contentY = 0;
         stroke(probeScroll, 30, 4, false);
         verify(probe.contentY < -1, "Pulling at the top stretches");
@@ -572,6 +585,8 @@ TestCase {
         verify(!probeScroll.tailRunning, "Any other move of the view stops a glide");
         stroke(outerScroll, -20, 3, false, 20, 150);
         verify(outerScroll.yielding === false && outer.contentY === 0, "A stroke over a scroll area inside goes to that area");
+        outerScroll.handle({ phase: Qt.NoScrollPhase, pixelDelta: Qt.point(0, 0), angleDelta: Qt.point(0, -120), x: 20, y: 150, accepted: false });
+        compare(outer.contentY, 0, "and so does a wheel click");
         stroke(outerScroll, -10, 3, false, 20, 50);
         compare(outer.contentY, 150, "A stroke elsewhere scrolls the outer view");
         settled(outerScroll);

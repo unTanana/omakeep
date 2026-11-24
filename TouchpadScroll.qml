@@ -24,8 +24,8 @@ MouseArea {
     // Mouse wheel distance per click (120 angle units); 0 leaves clicks to the Flickable itself.
     property real notchPx: Math.min(Application.styleHints.wheelScrollLines * Scroll.NOTCH_PX_PER_LINE,
                                     Math.max(1, (flickable ? flickable.height : 0) * Scroll.NOTCH_MAX_VIEW))
-    // True while a stroke, glide or spring-back runs, and briefly after a wheel click.
-    readonly property bool active: settle.running || tailRunning || returnRunning
+    // True while a glide or spring-back runs.
+    readonly property bool active: tailRunning || returnRunning
 
     property bool tailRunning: false
     property bool returnRunning: false
@@ -43,9 +43,14 @@ MouseArea {
     anchors.fill: parent
     z: 1000
     acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
-    onPressed: mouse => { root.stopTail(); mouse.accepted = false }
-
-    Timer { id: settle; interval: 400 }
+    // A press stops a glide; a list left stretched past its end still springs back, because a list
+    // that is not interactive gets no spring-back from Qt on release.
+    onPressed: mouse => {
+        root.stopTail()
+        if (root.overscrolled())
+            root.startReturn()
+        mouse.accepted = false
+    }
 
     function limits() { return Scroll.limitsY(root.flickable) }
 
@@ -123,7 +128,7 @@ MouseArea {
             const l = root.limits()
             const before = f.contentY
             const want = before - step.dx
-            if (root.over === 0 && want >= l.min && want <= l.max) {
+            if (want >= l.min && want <= l.max) {
                 f.contentY = want
                 if (f.contentY === before)
                     root.velocity = 0
@@ -157,19 +162,20 @@ MouseArea {
             root.returnRunning = false
     }
 
-    // The innermost other scroll area under the point that has something to scroll, if any.
-    // childAt() skips hidden items.
-    function innerScroller(x, y) {
-        let item = root.flickable.contentItem
-        let p = root.mapToItem(item, x, y)
-        while (item) {
-            const child = item.childAt(p.x, p.y)
-            if (!child)
-                return null
-            if (child instanceof Flickable && Scroll.scrollsY(child))
-                return child
-            p = item.mapToItem(child, p.x, p.y)
-            item = child
+    // Another scroll area under the point that has something to scroll, if any. Every visible item
+    // is looked at: childAt() sees only the top child (a row's full-size highlight layer hides its
+    // note editor), and an item without a height still shows what it holds.
+    function innerScroller(x, y, item) {
+        const kids = (item || root.flickable.contentItem).children
+        for (let i = 0; i < kids.length; i++) {
+            const c = kids[i]
+            if (!c.visible)
+                continue
+            if (c instanceof Flickable && Scroll.scrollsY(c) && c.contains(root.mapToItem(c, x, y)))
+                return c
+            const found = root.innerScroller(x, y, c)
+            if (found)
+                return found
         }
         return null
     }
@@ -184,7 +190,6 @@ MouseArea {
             wheel.accepted = true
             return
         }
-        settle.restart()
         if (phase === Qt.ScrollBegin) {
             root.stroking = true
             root.stopTail()
@@ -223,7 +228,6 @@ MouseArea {
             wheel.accepted = false // the Flickable's own wheel scrolling, or whatever holds it
             return
         }
-        settle.restart()
         f.cancelFlick()
         const l = root.limits()
         const want = f.contentY - travel
@@ -239,10 +243,6 @@ MouseArea {
 
     // Every wheel event comes here; the tests call it with plain objects.
     function handle(wheel) {
-        if (wheel.phase === Qt.ScrollMomentum) { // macOS sends its own glide
-            wheel.accepted = false
-            return
-        }
         if (wheel.phase !== Qt.NoScrollPhase) { // a touchpad stroke; a wheel click has no phase
             // A stroke stays with whichever area it started over.
             if (wheel.phase === Qt.ScrollBegin) {
@@ -279,10 +279,6 @@ MouseArea {
             root.stopTail()
             root.returnRunning = false
             root.over = 0
-        }
-        function onMovementStarted() {
-            root.stopTail()
-            root.stopReturn()
         }
     }
 
